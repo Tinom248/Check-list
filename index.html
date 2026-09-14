@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemeinsame Einkaufsliste</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --danger: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            padding: 2rem 1rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            height: fit-content;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        /* Eingabebereich */
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        /* Listen-Design */
+        ul {
+            list-style: none;
+            display: flex;
+            direction: ltr;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: #f1f5f9;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        li.completed {
+            background: #e2e8f0;
+            opacity: 0.7;
+        }
+
+        li.completed span {
+            text-decoration: line-through;
+            color: var(--text-muted);
+        }
+
+        .item-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .delete-btn {
+            background: transparent;
+            color: var(--danger);
+            padding: 0.25rem 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .delete-btn:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        .status-sync {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: right;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🛒 Gemeinsame Einkaufsliste</h1>
+        <p class="subtitle">Egal wer die Seite öffnet: Jeder sieht dieselben Artikel in Echtzeit.</p>
+
+        <div class="input-group">
+            <input type="text" id="itemInput" placeholder="Neuen Artikel hinzufügen..." onkeydown="if(event.key === 'Enter') addItem()">
+            <button onclick="addItem()">Hinzufügen</button>
+        </div>
+
+        <ul id="shoppingList">
+            <!-- Einträge werden per JavaScript geladen -->
+        </ul>
+
+        <div class="status-sync" id="syncStatus">Verbinde mit Cloud...</div>
+    </div>
+
+    <script>
+        // Wir nutzen einen öffentlichen Test-Endpunkt von npoint.io als Cloud-Speicher für deine Liste
+        // (Du kannst später für echte Projekte deinen eigenen JSONbin-Schlüssel eintragen)
+        const BIN_URL = 'https://api.npoint.io/654876426463937996f9'; // Beispiel-Bin (kannst du anpassen)
+
+        let items = [];
+
+        // Daten beim Start laden und alle 3 Sekunden aktualisieren (Echtzeit-Simulation)
+        async function fetchList() {
+            try {
+                const response = await fetch(BIN_URL);
+                const data = await response.json();
+                if (data && data.items) {
+                    // Nur neu rendern, wenn sich etwas geändert hat (verhindert Flackern)
+                    if (JSON.stringify(items) !== JSON.stringify(data.items)) {
+                        items = data.items;
+                        renderList();
+                    }
+                }
+                document.getElementById('syncStatus').textContent = "Status: Synchronisiert ✓";
+            } catch (e) {
+                document.getElementById('syncStatus').textContent = "Status: Verbindungsfehler (Offline)";
+            }
+        }
+
+        // Daten in die Cloud speichern
+        async function saveList() {
+            try {
+                await fetch(BIN_URL, {
+                    method: 'POST', // oder PUT je nach API
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: items })
+                });
+            } catch (e) {
+                console.error("Fehler beim Speichern", e);
+            }
+        }
+
+        // Artikel hinzufügen
+        function addItem() {
+            const input = document.getElementById('itemInput');
+            const text = input.value.trim();
+            if(!text) return;
+
+            items.push({ id: Date.now(), text: text, completed: false });
+            input.value = '';
+            renderList();
+            saveList();
+        }
+
+        // Artikel abhaken (Toggle)
+        function toggleItem(id) {
+            const item = items.find(i => i.id === id);
+            if(item) {
+                item.completed = !item.completed;
+                renderList();
+                saveList();
+            }
+        }
+
+        // Artikel löschen
+        function deleteItem(id) {
+            items = items.filter(i => i.id !== id);
+            renderList();
+            saveList();
+        }
+
+        // Liste auf dem Bildschirm zeichnen
+        function renderList() {
+            const listEl = document.getElementById('shoppingList');
+            listEl.innerHTML = '';
+
+            if (items.length === 0) {
+                listEl.innerHTML = '<p style="text-align:center; color: var(--text-muted); padding: 1rem;">Die Liste ist leer.</p>';
+                return;
+            }
+
+            items.forEach(item => {
+                const li = document.createElement('li');
+                if(item.completed) li.classList.add('completed');
+
+                li.innerHTML = `
+                    <div class="item-left" onclick="toggleItem(${item.id})">
+                        <input type="checkbox" ${item.completed ? 'checked' : ''} onclick="event.stopPropagation(); toggleItem(${item.id})">
+                        <span>${escapeHtml(item.text)}</span>
+                    </div>
+                    <button class="delete-btn" onclick="deleteItem(${item.id})">Löschen</button>
+                `;
+                listEl.appendChild(li);
+            });
+        }
+
+        // Kleine Sicherheitsfunktion gegen HTML-Injection
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // Initialer Laden-Aufruf und Polling (alle 3 Sekunden Daten abrufen)
+        fetchList();
+        setInterval(fetchList, 3000);
+    </script>
+</body>
+</html>
