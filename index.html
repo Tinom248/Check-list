@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemeinsame Einkaufsliste</title>
+    <title>Einkaufsliste</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -38,7 +38,7 @@
             background: var(--card-bg);
             padding: 2rem;
             border-radius: 16px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
             height: fit-content;
         }
 
@@ -46,9 +46,6 @@
             font-size: 1.5rem;
             margin-bottom: 0.5rem;
             color: var(--text);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
         }
 
         .subtitle {
@@ -57,7 +54,6 @@
             margin-bottom: 1.5rem;
         }
 
-        /* Eingabebereich */
         .input-group {
             display: flex;
             gap: 0.5rem;
@@ -71,7 +67,6 @@
             border-radius: 8px;
             font-size: 0.95rem;
             outline: none;
-            transition: border-color 0.2s;
         }
 
         input[type="text"]:focus {
@@ -93,11 +88,9 @@
             background-color: var(--primary-hover);
         }
 
-        /* Listen-Design */
         ul {
             list-style: none;
             display: flex;
-            direction: ltr;
             flex-direction: column;
             gap: 0.75rem;
             max-height: 400px;
@@ -148,74 +141,42 @@
 
         .delete-btn:hover {
             background: rgba(239, 68, 68, 0.1);
-            color: var(--danger);
         }
 
         .status-sync {
             font-size: 0.75rem;
-            color: var(--text-muted);
+            color: #10b981;
             text-align: right;
             margin-top: 1rem;
+            font-weight: 600;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>🛒 Gemeinsame Einkaufsliste</h1>
-        <p class="subtitle">Egal wer die Seite öffnet: Jeder sieht dieselben Artikel in Echtzeit.</p>
+        <h1>🛒 Einkaufsliste</h1>
+        <p class="subtitle">Einfach, lokal gespeichert und fehlerfrei.</p>
 
         <div class="input-group">
             <input type="text" id="itemInput" placeholder="Neuen Artikel hinzufügen..." onkeydown="if(event.key === 'Enter') addItem()">
             <button onclick="addItem()">Hinzufügen</button>
         </div>
 
-        <ul id="shoppingList">
-            <!-- Einträge werden per JavaScript geladen -->
-        </ul>
+        <ul id="shoppingList"></ul>
 
-        <div class="status-sync" id="syncStatus">Verbinde mit Cloud...</div>
+        <div class="status-sync" id="syncStatus">Status: Bereit ✓</div>
     </div>
 
     <script>
-        // Wir nutzen einen öffentlichen Test-Endpunkt von npoint.io als Cloud-Speicher für deine Liste
-        // (Du kannst später für echte Projekte deinen eigenen JSONbin-Schlüssel eintragen)
-        const BIN_URL = 'https://www.npoint.io/docs/a7972eb6bc450f1ddac0'; // Beispiel-Bin (kannst du anpassen)
+        // Lokaler Speicher
+        let items = JSON.parse(localStorage.getItem('shopping_items')) || [];
 
-        let items = [];
-
-        // Daten beim Start laden und alle 3 Sekunden aktualisieren (Echtzeit-Simulation)
-        async function fetchList() {
-            try {
-                const response = await fetch(BIN_URL);
-                const data = await response.json();
-                if (data && data.items) {
-                    // Nur neu rendern, wenn sich etwas geändert hat (verhindert Flackern)
-                    if (JSON.stringify(items) !== JSON.stringify(data.items)) {
-                        items = data.items;
-                        renderList();
-                    }
-                }
-                document.getElementById('syncStatus').textContent = "Status: Synchronisiert ✓";
-            } catch (e) {
-                document.getElementById('syncStatus').textContent = "Status: Verbindungsfehler (Offline)";
-            }
+        function saveAndRender() {
+            localStorage.setItem('shopping_items', JSON.stringify(items));
+            renderList();
         }
 
-        // Daten in die Cloud speichern
-        async function saveList() {
-            try {
-                await fetch(BIN_URL, {
-                    method: 'POST', // oder PUT je nach API
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ items: items })
-                });
-            } catch (e) {
-                console.error("Fehler beim Speichern", e);
-            }
-        }
-
-        // Artikel hinzufügen
         function addItem() {
             const input = document.getElementById('itemInput');
             const text = input.value.trim();
@@ -223,28 +184,22 @@
 
             items.push({ id: Date.now(), text: text, completed: false });
             input.value = '';
-            renderList();
-            saveList();
+            saveAndRender();
         }
 
-        // Artikel abhaken (Toggle)
         function toggleItem(id) {
             const item = items.find(i => i.id === id);
             if(item) {
                 item.completed = !item.completed;
-                renderList();
-                saveList();
+                saveAndRender();
             }
         }
 
-        // Artikel löschen
         function deleteItem(id) {
             items = items.filter(i => i.id !== id);
-            renderList();
-            saveList();
+            saveAndRender();
         }
 
-        // Liste auf dem Bildschirm zeichnen
         function renderList() {
             const listEl = document.getElementById('shoppingList');
             listEl.innerHTML = '';
@@ -269,14 +224,12 @@
             });
         }
 
-        // Kleine Sicherheitsfunktion gegen HTML-Injection
         function escapeHtml(text) {
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
-        // Initialer Laden-Aufruf und Polling (alle 3 Sekunden Daten abrufen)
-        fetchList();
-        setInterval(fetchList, 3000);
+        // Initiale Ansicht laden
+        renderList();
     </script>
 </body>
 </html>
